@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo:*)",
+      "Read(//tmp/**)",
+      "Bash(grep -v \"^\\\\.git$\")",
+      "Bash(BASE=\"c:/Users/v-lenejennum/OneDrive - Microsoft/Documents/VS Code/Quality Management/app/src/Apps/W1\")",
+      "Bash(rm -rf \"$BASE/APIReportsFinance\" \"$BASE/DataArchive\" \"$BASE/DataCorrectionFA\" \"$BASE/DataSearch\" \"$BASE/EDocument\" \"$BASE/EDocumentConnectors\" \"$BASE/ErrorMessagesWithRecommendations\" \"$BASE/EssentialBusinessHeadlines\" \"$BASE/ExcelReports\" \"$BASE/External File Storage - Azure Blob Service Connector\" \"$BASE/External File Storage - Azure File Service Connector\" \"$BASE/External File Storage - SFTP Connector\" \"$BASE/External File Storage - SharePoint Connector\" \"$BASE/External Storage - Document Attachments\" \"$BASE/PEPPOL\" \"$BASE/PaymentPractices\" \"$BASE/PowerBIReports\")",
+      "Bash(BASE=\"c:/Users/v-lenejennum/OneDrive - Microsoft/Documents/VS Code/Quality Management/app\")",
+      "Bash(rm -rf \"$BASE/.azuredevops\" \"$BASE/.devcontainer\")",
+      "Bash(grep -v \"^\\\\.$\")"
+    ]
+  }
+}

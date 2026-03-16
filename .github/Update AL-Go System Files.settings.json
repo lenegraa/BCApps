@@ -1,0 +1,13 @@
+{
+    "workflowSchedule": {
+        "cron": "25 12 * * 3",
+        "includeBranches": [
+            "main",
+            "releases/25.*",
+            "releases/26.*",
+            "releases/27.*",
+            "releases/28.*"
+        ]
+    }
+}
+
