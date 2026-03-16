@@ -22,7 +22,7 @@ report 20401 "Qlty. Certificate of Analysis"
     ApplicationArea = QualityManagement;
     UsageCategory = ReportsAndAnalysis;
     Caption = 'Quality Management - Certificate of Analysis';
-    DefaultRenderingLayout = QltyCertificateOfAnalysisDefault;
+    DefaultRenderingLayout = QualityManagement_CertificateOfAnalysis_Default;
     Extensible = true;
 
     dataset
