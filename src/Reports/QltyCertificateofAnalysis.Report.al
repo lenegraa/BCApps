@@ -5,6 +5,7 @@
 namespace Microsoft.QualityManagement.Reports;
 
 using Microsoft.CRM.Contact;
+using Microsoft.CRM.Team;
 using Microsoft.Foundation.Address;
 using Microsoft.Foundation.Company;
 using Microsoft.Inventory.Item;
@@ -13,6 +14,8 @@ using Microsoft.QualityManagement.Configuration.Template;
 using Microsoft.QualityManagement.Document;
 using Microsoft.QualityManagement.Setup;
 using Microsoft.QualityManagement.Utilities;
+using System.Security.AccessControl;
+using System.Security.User;
 
 report 20401 "Qlty. Certificate of Analysis"
 {
@@ -81,6 +84,24 @@ report 20401 "Qlty. Certificate of Analysis"
             column(COAContact_Row7; ContactInformationArray[7]) { }
             column(COAContact_Row8; ContactInformationArray[8]) { }
             column(COAContact_All; AllContactInformation) { }
+
+            // Pre-calculated columns for Word Layout
+            column(ProductDescription; ProductDescriptionText) { }
+            column(ItemTrackingDescription; ItemTrackingText) { }
+            column(ReinspectionDescription; SequenceText) { }
+
+            // Pre-calculated label columns for Word Layout
+            column(FinishedBySignatureLabel; FinishedBySignatureLbl) { }
+            column(FinishedByNameLabel; FinishedByNameLbl) { }
+            column(DirectorSignatureLabel; DirectorSignatureLbl) { }
+            column(DirectorNameLabel; DirectorNameLbl) { }
+            column(FinishedDateOnly; FinishedDateOnly) { }
+            column(HomePageLabel; HomePageLabelText) { }
+            column(HomePageValue; HomePageValueText) { }
+            column(EmailLabel; EmailLabelText) { }
+            column(EmailValue; EmailValueText) { }
+            column(PhoneNoLabel; PhoneNoLabelText) { }
+            column(PhoneNoValue; PhoneNoValueText) { }
 
             dataitem(CurrentInspectionLine; "Qlty. Inspection Line")
             {
@@ -204,10 +225,18 @@ report 20401 "Qlty. Certificate of Analysis"
                 {
                 }
 
+                // Pre-calculated condition label columns for Word Layout
+                column(ConditionLabel_1; ConditionLabelText1) { }
+                column(ConditionLabel_2; ConditionLabelText2) { }
+
                 trigger OnAfterGetRecord()
                 var
                     QltyResultConditionMgmt: Codeunit "Qlty. Result Condition Mgmt.";
+                    QltyIResultConditConf: Record "Qlty. I. Result Condit. Conf.";
+                    QltyInspectionResult: Record "Qlty. Inspection Result";
                     DummyRecordId: RecordId;
+                    Caption: array[2] of Text;
+                    Iterator: Integer;
                 begin
                     Clear(MatrixSourceRecordId);
                     Clear(MatrixArrayConditionCellData);
@@ -238,6 +267,33 @@ report 20401 "Qlty. Certificate of Analysis"
                         LabelFieldDescription := CurrentInspectionLine.Description
                     else
                         LabelFieldDescription := '';
+
+                    // Resolve pre-calculated condition label columns for Word Layout
+                    Clear(Caption);
+                    QltyIResultConditConf.SetRange("Condition Type", QltyIResultConditConf."Condition Type"::Inspection);
+                    QltyIResultConditConf.SetRange("Target Code", CurrentInspectionLine."Inspection No.");
+                    QltyIResultConditConf.SetRange("Target Re-inspection No.", CurrentInspectionLine."Re-inspection No.");
+                    QltyIResultConditConf.SetRange("Target Line No.", CurrentInspectionLine."Line No.");
+                    QltyIResultConditConf.SetRange("Test Code", CurrentInspectionLine."Test Code");
+                    QltyIResultConditConf.SetRange("Result Visibility", QltyIResultConditConf."Result Visibility"::Promoted);
+                    QltyIResultConditConf.SetCurrentKey("Condition Type", "Result Visibility", Priority, "Target Code", "Target Re-inspection No.", "Target Line No.");
+                    QltyIResultConditConf.Ascending(false);
+                    Iterator := 0;
+                    if QltyIResultConditConf.FindSet() then
+                        repeat
+                            if QltyInspectionResult.Get(QltyIResultConditConf."Result Code") then begin
+                                Iterator += 1;
+                                if Iterator <= 2 then begin
+                                    if QltyInspectionResult.Description <> '' then
+                                        Caption[Iterator] := QltyInspectionResult.Description
+                                    else
+                                        Caption[Iterator] := QltyInspectionResult.Code;
+                                end;
+                            end;
+                        until (QltyIResultConditConf.Next() = 0) or (Iterator >= 2);
+
+                    if Caption[1] <> '' then ConditionLabelText1 := Caption[1] + ' ' + ConditionSuffixLbl else ConditionLabelText1 := '';
+                    if Caption[2] <> '' then ConditionLabelText2 := Caption[2] + ' ' + ConditionSuffixLbl else ConditionLabelText2 := '';
                 end;
             }
 
@@ -251,6 +307,14 @@ report 20401 "Qlty. Certificate of Analysis"
                 CompanyInformation.Get();
                 FormatAddress.Company(CompanyInformationArray, CompanyInformation);
 
+                // Resolve Company Information fields for Word Layout
+                HomePageValueText := CompanyInformation."Home Page";
+                EmailValueText := CompanyInformation."E-Mail";
+                PhoneNoValueText := CompanyInformation."Phone No.";
+                if HomePageValueText <> '' then HomePageLabelText := HomePageLbl else HomePageLabelText := '';
+                if EmailValueText <> '' then EmailLabelText := EmailLbl else EmailLabelText := '';
+                if PhoneNoValueText <> '' then PhoneNoLabelText := PhoneNoLbl else PhoneNoLabelText := '';
+
                 DirectorTitle := DefaultDirectorTitleLbl;
                 DirectorName := '';
 
@@ -258,7 +322,8 @@ report 20401 "Qlty. Certificate of Analysis"
                 if QltyManagementSetup."Certificate Contact No." <> '' then
                     if Contact.Get(QltyManagementSetup."Certificate Contact No.") then begin
                         DirectorName := Contact.Name;
-                        DirectorTitle := Contact."Job Title";
+                        if Contact."Job Title" <> '' then
+                            DirectorTitle := Contact."Job Title";
                         FormatAddress.ContactAddr(ContactInformationArray, Contact);
                     end;
 
@@ -268,6 +333,8 @@ report 20401 "Qlty. Certificate of Analysis"
 
             trigger OnAfterGetRecord()
             var
+                UserSetup: Record "User Setup";
+                SalespersonPurchaser: Record "Salesperson/Purchaser";
                 DummyRecordId: RecordId;
             begin
                 if CurrentInspection."Source Item No." = '' then
@@ -284,6 +351,53 @@ report 20401 "Qlty. Certificate of Analysis"
                 QltyPersonLookup.GetBasicPersonDetails(CurrentInspection."Finished By User ID", FinishedByUserName, FinishedByTitle, FinishedByEmail, FinishedByPhone, DummyRecordId);
                 if (FinishedByTitle = '') and (FinishedByUserName <> '') then
                     FinishedByTitle := DefaultQualityInspectorTitleLbl;
+
+                // Pre-calculated columns for Word Layout
+                // Resolve Product Text
+                ProductDescriptionText := CurrentInspection."Source Item No.";
+                if CurrentInspection."Source Variant Code" <> '' then
+                    ProductDescriptionText += ' ' + CurrentInspection."Source Variant Code";
+                if Item.Description <> '' then
+                    ProductDescriptionText += ' ' + Item.Description;
+                if Item."Description 2" <> '' then
+                    ProductDescriptionText += ' ' + Item."Description 2";
+
+                // Resolve Item Tracking
+                ItemTrackingText := CurrentInspection."Source Lot No.";
+                if CurrentInspection."Source Serial No." <> '' then begin
+                    if ItemTrackingText <> '' then
+                        ItemTrackingText += ' ';
+                    ItemTrackingText += CurrentInspection."Source Serial No.";
+                end;
+
+                // Resolve job title for Finished By user via Salesperson/Purchaser
+                FinishedByTitle := '';
+                if CurrentInspection."Finished By User ID" <> '' then begin
+                    if UserSetup.Get(CurrentInspection."Finished By User ID") then
+                        if UserSetup."Salespers./Purch. Code" <> '' then
+                            if SalespersonPurchaser.Get(UserSetup."Salespers./Purch. Code") then
+                                FinishedByTitle := SalespersonPurchaser."Job Title";
+
+                    if FinishedByTitle = '' then
+                        FinishedByTitle := DefaultQualityInspectorTitleLbl;
+                end;
+
+                FinishedDateOnly := DT2Date(CurrentInspection."Finished Date");
+
+                // Resolve Sequence
+                SequenceText := SequenceLbl;
+                SequenceText += ' ' + Format(CurrentInspection."Re-inspection No.");
+                SequenceText += ' (' + Format(CurrentInspection.Status);
+                SequenceText += ', ' + ResultLbl + ' ' + CurrentInspection."Result Description" + ')';
+
+                // Resolve Finished By Signature Label
+                FinishedBySignatureLbl := FinishedByTitle + ' ' + SignatureSuffixLbl;
+                // Resolve Finished By Name
+                FinishedByNameLbl := FinishedByTitle + ' ' + NameSuffixLbl;
+                // Resolve Director Signature Label
+                DirectorSignatureLbl := DirectorTitle + ' ' + SignatureSuffixLbl;
+                // Resolve Director Name Label
+                DirectorNameLbl := DirectorTitle + ' ' + NameSuffixLbl;
             end;
         }
     }
@@ -311,6 +425,23 @@ report 20401 "Qlty. Certificate of Analysis"
             Summary = 'Word layout for certificate of analysis report.';
             LayoutFile = './src/Reports/QltyCertificateOfAnalysis.docx';
         }
+
+    }
+
+    labels
+    {
+        TestDocumentNoLabel = 'Test Document No.';
+        MetricLabel = 'Metric';
+        MeasurementLabel = 'Measurement';
+        ProductLabel = 'Product';
+        ItemTrackingLabel = 'Item Tracking';
+        DateLabel = 'Date';
+        CompletedByLabel = 'Completed By';
+        CompletedDateLabel = 'on';
+        ReportTitleLabel = 'Certificate of Analysis';
+        ResultLabel = 'Result';
+        ConditionLabel = 'Condition';
+        ReinspectionLabel = 'Reinspection';
     }
 
     var
@@ -351,6 +482,30 @@ report 20401 "Qlty. Certificate of Analysis"
         LabelFieldDescription: Text;
         DefaultDirectorTitleLbl: Label 'Director';
         DefaultQualityInspectorTitleLbl: Label 'Quality Inspection';
+        ProductDescriptionText: Text;
+        ItemTrackingText: Text;
+        FinishedBySignatureLbl: Text;
+        FinishedByNameLbl: Text;
+        DirectorSignatureLbl: Text;
+        DirectorNameLbl: Text;
+        SequenceText: Text;
+        FinishedDateOnly: Date;
+        HomePageLabelText: Text;
+        HomePageValueText: Text;
+        EmailLabelText: Text;
+        EmailValueText: Text;
+        PhoneNoLabelText: Text;
+        PhoneNoValueText: Text;
+        ConditionLabelText1: Text;
+        ConditionLabelText2: Text;
+        NameSuffixLbl: Label 'Name';
+        SignatureSuffixLbl: Label 'Signature';
+        SequenceLbl: Label 'Sequence';
+        ResultLbl: Label 'Result';
+        HomePageLbl: Label 'Home Page';
+        EmailLbl: Label 'E-Mail';
+        PhoneNoLbl: Label 'Phone No.';
+        ConditionSuffixLbl: Label 'Condition';
 
     local procedure CombineToCarriageReturnString(var InTextToCombine: array[8] of Text[100]; var CombinedTextResult: Text)
     var
